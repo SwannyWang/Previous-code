@@ -1,0 +1,405 @@
+---
+title: "STAT2301 Fall 2022 Final Exam [100 pts]"
+author: "Student Name: Hongtian Wang"
+date: "Dec 13, 2022"
+output: pdf_document
+---
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(numDeriv)
+```
+
+
+The STAT 2301 Fall 2022 Final Exam is open notes, open book(s), open computer and online resources are allowed.  Students are **not** allowed to communicate with any other people regarding the final with the exception of the instructor (Linxi Liu) and TA (Jie He).  This includes emailing fellow students, using WeChat and other similar forms of communication.  If there is any suspicious of students cheating, further investigation will take place.  If students do not follow the guidelines, they will receive a zero on the exam and potentially face more severe consequences.  The exam will be posted on Canvas at 9:00AM on Dec 13, 2022.  Students are required to submit both the .pdf and .Rmd files on Canvas (or .html if you must) by 9:00AM, Dec 15 2022. Late exams will not be accepted.          
+
+
+# Part 1: Simulation [40 pts]  
+
+In this section, we consider a **mixture** of two normal distributions.  Here we assume that our random variable is governed by the probability density $f(x)$, defined by
+\begin{align*}
+f(x)&=f(x;\mu_1,\sigma_1,\mu_2,\sigma_2,\delta)\\
+&=\delta f_1(x;\mu_1,\sigma_1)+(1-\delta)f_2(x;\mu_2,\sigma_2)\\
+ &=\delta \frac{1}{\sqrt{2 \pi \sigma_1^2}}\exp{-\frac{1}{2\sigma_1^2}(x-\mu_1)^2}+(1-\delta) \frac{1}{\sqrt{2 \pi \sigma_2^2}}\exp{-\frac{1}{2\sigma_2^2}(x-\mu_2)^2}, 
+\end{align*}
+where  $-\infty<x<\infty$ and the parameter space is defined by $-\infty < \mu_1,\mu_2 <\infty$, $\sigma_1,\sigma_2 >0$, and $0\leq\delta\leq1$.   The **mixture parameter** $\delta$ governs how much mass gets placed on the first distribution $f(x;\mu_1,\sigma_1)$ and the complement of $\delta$ governs how much mass gets placed on the other distribution $f_2(x;\mu_2,\sigma_2)$.  
+
+In our setting, suppose that we are simulating $n=10,000$ heights from the population of both males and females.  Assume that males are distributed normal with mean $\mu_1=70\text{[in]}$ and standard deviation $\sigma_1=3\text{[in]}$ and females are distributed normal with mean $\mu_2=64\text{[in]}$ and standard deviation $\sigma_2=2.5\text{[in]}$.  Also assume that each distribution contributes equal mass, i.e., set the mixture parameter to $\delta=.5$.  The distribution of males is governed by 
+\[
+f_1(x;\mu_1,\sigma_1)=\frac{1}{\sqrt{2 \pi \sigma_1^2}}\exp{-\frac{1}{2\sigma_1^2}(x-\mu_1)^2}, \ \ \ -\infty<x<\infty,
+\]
+and the distribution of females is governed by
+\[
+f_2(x;\mu_2,\sigma_2)=\frac{1}{\sqrt{2 \pi \sigma_2^2}}\exp{-\frac{1}{2\sigma_2^2}(x-\mu_2)^2}, \ \ \ -\infty<x<\infty.
+\]
+The goal is to **simulate** from the **mixture distribution** 
+\[
+\delta f_1(x;\mu_1,\sigma_1)+(1-\delta)f_2(x;\mu_2,\sigma_2),
+\]
+where $\mu_1=70,\sigma_1=3,\mu_2=64,\sigma_2=2.5,\delta=2.5$ using the accept-reject algorithm. 
+
+## Perform the following tasks:
+
+1) [10 pts]   Using **ggplot**, graph $f_1(x;\mu_1,\sigma_1)$, $f_2(x;\mu_2,\sigma_2)$ and the mixture $f(x)$ all on the same plot. Make sure the plot includes a legend and is labeled appropriately.    
+
+```{r}
+set.seed(0)
+x <- seq(55,80,length.out = 250)
+f <- function(x)
+{
+  return(0.5 * dnorm(x,70,3) + 0.5 * dnorm(x,64,2.5))
+}
+male.example <- dnorm(x, 70, 3)
+female.example <- dnorm(x, 64, 2.5)
+mix.example <- 0.5*male.example+0.5*female.example
+example <- data.frame(
+  X = x,
+  fx = c(male.example, female.example, mix.example),
+  type = factor(rep(c("Male", "Female", "Mix"), each=250)))
+ggplot(data = example) +
+  geom_line(aes(x = X, y = fx, color = type)) + 
+  labs(y= "density") + 
+  ggtitle("density of f1, f2, and fmix")
+```
+
+2) [25 pts] Use the **accept-reject** algorithm to simulate from this mixture distribution.  To receive full credit:
+\begin{itemize}
+\item[2.i] Clearly identify an \textbf{easy to simulate} distribution $g(x)$.  I recommend picking a normal distribution or a Cauchy distribution for $g(x)$. 
+\item[2.ii] Identify a \textbf{suitable} value of $alpha$ such that your envelope function $e(x)$ satisfies
+\[
+f(x) \leq e(x) = g(x)/\alpha, \ \ \text{where} \ \ 0<\alpha<1.
+\]
+Note that you must choose $\alpha$ so that $e(x)$ is close to $f(x)$.  Show that your $alpha$ is \textbf{suitable} using a plot.
+\item[2.iii] Simulate 10,000 draws from the mixture distribution using the \textbf{accept-reject} algorithm.  Display the first 20 simulated values.  Also, using \textbf{ggplot} or \textbf{base R}, construct a histogram of the simulated mixture distribution with the true mixture pdf $f(x)$ overlayed on the plot.
+\end{itemize}
+
+2.i) [5 pts]  
+I chose a normal distribution with $\mu = 68$, $\sigma = 5$ as g(x).
+```{r}
+gx <- dnorm(x, mean = 68, sd = 5)
+```
+
+2.ii) [10 pts]  By inspection, we see that choosing $\alpha=.44$ allows $e(x)$ to be greater than $f(x)$ for all $x$ and the envelope sits relatively close to the target distribution.
+
+```{r}
+g <- function(x)
+{
+  return(dnorm(x,68,5))
+}
+e <- function(x)
+{
+  return(g(x)/0.44)
+}
+plot(x, f(x), ylim = c(0, 0.2), xlab = "x", ylab = "f(x) and e(x)")
+lines(x, e(x), col = "chocolate3")
+all(f(x)<e(x))
+```
+As the plot shows, with a normal distribution with $\mu = 68$, $\sigma = 5$ and $\alpha = 0.44$, e(x) is greater than f(x) for all x. 
+
+2.iii) [10 pts] The **Accept-Reject** algorithm is coded below: 
+```{r}
+norm.sim <- function(n)
+{
+  U <- runif(n)
+  return(qnorm(U)*5+68)
+}
+```
+
+```{r}
+Accept.Reject <- function(n.samps) {
+n <- 0
+samps <- numeric(n.samps)
+while (n < n.samps) {
+  y <- norm.sim(1)
+  u <- runif(1)
+  if (u < f(y)/e(y)) {
+    n <- n + 1
+    samps[n] <- y
+    }
+  }
+return(samps)
+}
+normal.draws <- Accept.Reject(10000)
+head(normal.draws, 20)
+```
+
+Plot: 
+
+```{r}
+hist(normal.draws, prob = T, ylab = "f(x)", breaks=50, xlab = "x", main = "Histogram of Reject-Accept Method lines")
+lines(x, f(x), lty = 2)
+```
+
+3) [5 pts] Slightly change the **Accept-Reject** algorithm from Part (2.iii) to also include the acceptance rate, i.e., how many times did the algorithm accept a draw compared to the total number of trials performed.  What proportion of cases were accepted?  Compare this number to your chosen $\alpha$ and comment on the result.
+
+```{r}
+set.seed(0)
+Accept.Reject1 <- function(n.samps) {
+n <- 0
+sum <- 0
+samps <- numeric(n.samps)
+for (n in 1:n.samps) {
+  y <- norm.sim(1)
+  u <- runif(1)
+  if (u < f(y)/e(y)) {
+    n <- n + 1
+    samps[n] <- y
+    sum = sum + 1
+    }
+  }
+return(sum)
+}
+Accept.Reject1(1000)
+```
+The algorithm accepts a draw 442 times comparing to 1000 times in total. The $\alpha$ is 0.44, which is very close to the proportion of draws accepted. 
+
+# Part II: Maximum Likelihood Estimaiton and Newton's Method [25 pts] 
+
+Recall in logistic regression, the likelihood function is derived by **linking** the mean of $Y_i$ with a linear function.
+
+**Logistic Regression Model:**
+
+Let $Y_1,Y_2,\ldots,Y_n$ be independently distributed Bernoulli random variables with respective success probabilities $p_1,p_2,\ldots,p_n$.  Then the **logistic regression model** is: 
+\[
+E[Y_i]=p_i=\frac{e^{(\beta_0+\beta_1x_{i1}+\beta_2x_{i2}+\cdots+\beta_px_{i,p})}}{1+e^{(\beta_0+\beta_1x_{i1}+\beta_2x_{i2}+\cdots+\beta_px_{i,p})}}, \ \ \ \, i=1,2,\ldots,n.
+\]
+
+Notice with some simple algebra, the above model can be expresses as:
+
+\[
+\log \bigg{(} \frac{p_i}{1-p_i}\bigg{)}=\beta_0+\beta_1x_{i1}+\beta_2x_{i2}+\cdots+\beta_px_{i,p} x_i, \ \ \ \, i=1,2,\ldots,n.
+\]
+The main idea is to **link** the expected value of $Y_i$ ($E[Y_i]=p_i$) to a linear function. This same principle can be applied to other settings. 
+
+## Data Description
+
+Consider a geriatrics experiment designed as a prospective study to investigate the effects of two interventions on the frequency of falls. One hundred subjects were randomly assigned to one of the two interventions: education only ($X_1 = 0$) and education plus aerobic exercise training ($X_1 = 1$). Subjects were at least 65 years of age and in reasonably good health. Three variables considered to be important as control variables were gender ($X_2:0=$female, 1=male), a balance index ($X_3$), and a strength index ($X_4$). The higher the balance index, the more stable the subject: and the higher the strength index, the stronger the subject. Let $Y$ be the number of falls during the six month study.
+
+```{r}
+glm.data <- read.table("http://www.cnachtsheim-text.csom.umn.edu/Kutner/Chapter%2014%20Data%20Sets/CH14PR39.txt")
+names(glm.data) <- c("Y","X1","X2","X3","X4")
+head(glm.data)
+```
+
+In this setting, the response variable takes on discrete count values, therefore it is reasonable to assume $Y_1,Y_2,\ldots,Y_{100}$ are independent Poisson random variables with mean $E[Y_i]=\lambda_i$.  Here we can choose a link function that relates $\lambda_i$ to the linear function $\beta_0+\beta_1x_{i1}+\beta_2x_{i2}+\beta_3x_{i3}+\beta_4x_{i4}$.  
+
+**Perform the follwoing task:**
+
+4) [25 pts] Assume $Y_1,Y_2,\ldots,Y_{100}$ are independent Poisson random variables with mean
+\[
+E[Y_i]=\lambda_i=\exp{(\beta_0+\beta_1x_{i1}+\beta_2x_{i2}+\beta_3x_{i3}+\beta_4x_{i4})}
+\]
+Note that the link function is $exp(u)$.  Use maximum likelihood estimation to estimate the Poisson regression model.  To receive full credit:
+
+\begin{itemize}
+\item[4.i] Define the negative log-likelihood function in R.  Name the function \textbf{pois.neg.ll}.
+\item[4.ii] Test the negative log-likelihood function at the parameter point \textbf{rep(0,5)}.
+\item[4.iii] Use the \textbf{Newton's Method} or \textbf{Gradient Descent} algorithm from class to estimate coefficients $\beta_0,\beta_1,\beta_2,\beta_3,\beta_4$. Display the estimated parameters and the number of iterations the algorithm took to converge.  For partial credit, you can use \textbf{nlm()}.      
+\end{itemize}
+
+4.i) [10 pts]  
+```{r}
+pois.neg.ll <- function(beta)
+{
+  beta_0 <- beta[1]
+  beta_1 <- beta[2]
+  beta_2 <- beta[3]
+  beta_3 <- beta[4]
+  beta_4 <- beta[5]
+  y <- glm.data[,1]
+  x <- glm.data[,2:5]
+  linear.component <- beta_0 + beta_1*x[,1] + beta_2*x[,2] + beta_3*x[,3] + beta_4*x[,4]
+  lambda <- exp(linear.component)
+  return(-sum(dpois(y,lambda,log=TRUE)))
+}
+```
+
+4.ii) [5 pts]  
+
+```{r}
+pois.neg.ll(rep(0,5))
+```
+
+4.iii) [10 pts]   
+```{r, warning=FALSE}
+nlm(pois.neg.ll,p=c(0,0,0,0,0))
+grad.descent <- function(f, x0, max.iter = 200, step.size = 0.05, stopping.deriv = 0.01, ...) {
+  n    <- length(x0)
+  xmat <- matrix(0, nrow = n, ncol = max.iter)
+  xmat[,1] <- x0
+  
+  for (k in 2:max.iter) {
+    grad.cur <- grad(f, xmat[,k-1], ...) 
+    
+    if (all(abs(grad.cur) < stopping.deriv)) {
+      k <- k-1; break
+    }
+    
+    xmat[,k] <- xmat[,k-1] - step.size * grad.cur
+  }
+  
+  xmat <- xmat[,1:k]
+  return(list(x = xmat[,k], xmat = xmat, k = k))
+}
+```
+
+```{r}
+est <- grad.descent(pois.neg.ll, c(0.4,-1,-0.04,0,0), step.size=1e-6, max.iter=1000)
+est$k
+est$x
+```
+I used the gradient descent algorithm to estimate the parameters. After 10,000 iterations, the parameter estimated are $(0.40210723,-1.00371990,-0.03900439,0.01266706,0.01315838)$. However, the result of the gradient descent did not converge. The result given by NLM is closer to the model parameters. 
+
+
+Check the result with **glm()** (optional)
+
+```{r}
+glm(Y~X1+X2+X3+X4,data=glm.data,family="poisson")
+```
+
+
+# Part III: Bootstrap and robust estimation [35 pts + 10 extra pts] 
+
+## Problem statement: 
+
+Consider the following toy dataset relating response variable $Y$ with covariate $X$.  Note that this dataset is an extreme case of how traditional least squares regression fails to capture the trend of the the data in the presences of outlying observations. 
+
+```{r}
+data <- read.csv("Problem3.csv")
+plot(data$X,data$Y, pch=16, main="Linear Trend and Outlyers")
+```
+
+
+5) [10 pts] Fit a regular linear regression to the above dataset and plot the line of best fit in red.
+
+Also remove the three outlying points and fit the linear model on the remaining 27 cases. Plot this new line of best fit on the same graph as the first model.  Create a legend on the plot describing each line.  Note: remove the points corresponding to $Y=1.05,1.94,2.38$.   
+
+Comment on any interesting features from the graph and estimated models.  
+
+```{r}
+lm1 <- lm(Y~X, data = data)
+summary(lm1)
+lm1 %>% plot(which = 2)
+data1 <- data[c(1:5, 7:19, 21:28, 30),]
+lm2 <- lm(Y~X, data = data1)
+summary(lm2)
+plot(data$X, data$Y)
+abline(coefficients(lm1), col = "red")
+abline(coefficients(lm2), col = "blue")
+legend(0, 30, legend=c("lm1 with outliers", "lm2 without outliers"), 
+       fill = c("red","blue")
+)
+```
+After removing the 3 data points, $\hat{\beta_1}$ is larger than before. 
+
+## Problem 6) set-up:  
+
+To fit the linear model, we minimize the total squared Euclidean distance between $Y$ and a linear function of $X$, i.e., minimize the expression below with respect to $\beta_0,\beta_1$.  
+\[
+S(\beta_0,\beta_1)=\sum_{i=1}^n(Y_i-(\beta_0+\beta_1X_i))^2
+\]
+
+From the above fit, we see that the outlying $Y$ values are influencing the estimated line, consequently, the linear fit is being pulled down and is not covering the full trend of the data.  To remedy this problem, we can perform a robust estimation procedure. More specifically, instead of minimizing squared Euclidean distance (squared loss), we can minimize Huber loss.  To estimate our robust model, we minimize $Q(\beta_0,\beta_1)$ with respect to $\beta_0,\beta_1$:  
+\begin{equation}\label{e:Huber}
+Q(\beta_0,\beta_1)=\sum_{i=1}^nf(Y_i-(\beta_0+\beta_1X_i)),
+\end{equation}
+where 
+\[
+f(u)=\begin{cases}u^2, \ \ \ \ \ \ \ \ \ \ \ \ \  -1\leq u \leq 1 \\ 2|u|-1, \ \ \ \ \ \  u<-1 \ \text{or} \ u>1 \end{cases}
+\]
+
+The goal of the next exercise is to write a robust estimation procedure for the coefficients $\beta_0,\beta_1$. In class we performed univariate gradient descent. On this exam, you can use the R base function **nlm()** to perform the optimization task. 
+
+6) [15 pts] Write a `R` function **Q** which computes the Huber loss as a function of the vector $c(\beta_0,\beta_1)$. Note that the Huber loss is defined in Equation (\ref{e:Huber}).  This exercise is having you create an objective function $Q(\beta_0,\beta_1)$ so that you can run an optimization procedure later on. Test your function at the point **c(0,0)**.  
+
+```{r}
+Q <- function(data, beta)
+{
+  b0 <- beta[1]
+  b1 <- beta[2]
+  x <- data[,1]
+  y <- data[,2]
+  sum <- 0
+  for(i in 1:length(y))
+  {
+    if((y[i]-b0-b1*x[i])>=-1 & (y[i]-b0-b1*x[i])<=1)
+    {
+      sum <- sum + (y[i] - b0 - b1*x[i])^2
+    }
+    else
+    {
+      sum <- sum + 2*abs(y[i]-b0-b1*x[i]) - 1
+    }
+  }
+  return(sum)
+}
+Q(data, c(0,0))
+```
+
+
+7) [10 pts] Optimize Huber loss $Q$ using the **nlm()** function.  Use the starting point **c(0,0)** and display your robust estimates. Use `ggplot()`, plot the estimated robust linear model and include the regular least squares regression line on the plot. Create a legend and label the plot appropriately.       
+
+```{r}
+nlm(Q,c(0,0),data=data)
+```
+```{r}
+data2 <- data
+data2[,2] <- data[,1]*2.943623+1.264991
+ggplot(data = data2) + 
+  geom_point(aes(x = data$X, y = data$Y)) + 
+  geom_smooth(aes(x = data$X, y = data$Y, col = "regular"), method = "lm", se = FALSE) + 
+  geom_smooth(aes(x = X, y = Y, col = "robust"), method = "lm", se = FALSE) + 
+  labs(x = "X", y = "Y") +
+  scale_color_manual(name="Regression Models",
+                     breaks=c('regular', 'robust'),
+                     values=c('regular'='red', 'robust'='blue'))
+  
+```
+
+
+8) [10 extra pts] As statisticians, we must also construct confidence intervals on our parameter estimates to gauge how precise these estimates actually are.  Recall the traditional parametric regression model:
+\[
+Y_i=\beta_0+\beta_1 X_i+\epsilon_i, \ \ \ i=1,2,\ldots,n, \ \ \ \epsilon_i \overset{iid}{\sim}N(0,\sigma^2)
+\]
+When using least squares estimation, the normal-error structure ($\epsilon_i \overset{iid}{\sim}N(0,\sigma^2)$) allows us to construct parametric confidence intervals for the parameters $\beta_0,\beta_1$. This is easily done in **R**.  The code below constructs $95\%$ intervals for the coefficients. 
+```{r}
+round(confint(lm(Y~X,data=data),level=.95),4)
+```
+Notice from the above output, the slope is almost not within the range of what we expect.  Clearly the outliers are impacting our least squares estimators. 
+In the presence of our outlying observations, the normal error structure is clearly not correct.  To approximate the correct distribution, we will apply the bootstrap procedure on the robust estimated coefficients computed by minimizing $Q(\beta_0,\beta_1)$.
+
+Run a bootstrap on the robust estimation procedure.  Note that this is similar to the regression bootstrap but you will be estimating the parameters by minimizing $Q(\beta_0,\beta_1)$.  Use $B=1000$ bootstrap iterations and confidence level 95\%. Use the regular bootstrap intervals (not percentile intervals) and compare your bootstrapped solution to the parametric model.     
+
+```{r}
+n <- 30
+B <- 1000
+resampled_values <- matrix(NA, nrow = B, ncol = n)
+for (b in 1:B) {
+  resampled_values[b, ] <- sample(1:n, n, replace = TRUE)
+}
+```
+
+```{r}
+resampled_ests <- matrix(NA, nrow = B, ncol = 2)
+for (b in 1:B) {
+  resampled_data <- data[resampled_values[b,],]
+  resampled_ests[b,] <- nlm(Q,c(0,0),data=resampled_data)$estimate
+}
+head(resampled_ests)
+```
+
+```{r}
+int.b0 <- c(2*coefficients(lm1)[1] - quantile(resampled_ests[1,], 0.975), 2*coefficients(lm1)[1] - quantile(resampled_ests[1,], 0.025))
+int.b0
+int.b1 <- c(2*coefficients(lm1)[2] - quantile(resampled_ests[2,], 0.975), 2*coefficients(lm1)[2] - quantile(resampled_ests[2,], 0.025))
+int.b1
+```
+Comparing to the intervals from the parametric model, the regular intervals for $\hat{\beta_0}$ and $\hat{\beta_1}$ gained from Bootstrapping are narrower, meaing that they are better and they are less influenced by the outliers than the intervals from the parametric model. 
+
+
+
+
+
+
+
